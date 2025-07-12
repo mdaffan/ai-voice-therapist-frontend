@@ -1,0 +1,78 @@
+@import "tailwindcss/preflight";
+@tailwind utilities;
+
+/* Hide scrollbar but keep functionality */
+.overflow-y-auto {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.overflow-y-auto::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+/* Smooth fade in animation for messages */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flex > div {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Ripple animation for voice button */
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+}
+
+.group:hover {
+  animation: ripple 1.5s infinite;
+}
+
+/* Background gradient */
+.bg-black {
+  background: radial-gradient(circle at center, #1a1c2e, #000000);
+}
+
+/* Glass effect */
+.bg-gray-900\/50 {
+  backdrop-filter: blur(12px);
+  background: linear-gradient(to bottom right, rgba(17, 24, 39, 0.7), rgba(17, 24, 39, 0.4));
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
