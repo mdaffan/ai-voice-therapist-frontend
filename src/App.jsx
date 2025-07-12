@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Canvas } from "@react-three/fiber";
-import Blob from "./components/blob/index.jsx";
+import AudioBlob from "./components/blob/index.jsx";
+import { MathUtils } from "three";
 // Generate a unique ID for each conversation session
 function newSessionId() {
   if (crypto && typeof crypto.randomUUID === 'function') {
@@ -95,7 +96,10 @@ export default function App() {
 
     // reset visualiser
     if (userVisualizerRef.current) {
-      userVisualizerRef.current.style.transform = 'scale(0)';
+      userVisualizerRef.current.scale.set(0.8, 0.8, 0.8);
+      if (userVisualizerRef.current.material) {
+        userVisualizerRef.current.material.uniforms.u_intensity.value = 0.3;
+      }
     }
 
     // close audio context
@@ -159,9 +163,13 @@ export default function App() {
       };
 
       mediaRecRef.current.onstop = async () => {
+        // Skip processing if chat was stopped in the meantime
+        if (!chatActiveRef.current) return;
+
         stopUserRecording();
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await uploadAndTranscribe(blob);
+
+        const audioBlob = new window.Blob(chunksRef.current, { type: 'audio/webm' });
+        await uploadAndTranscribe(audioBlob);
       };
 
       mediaRecRef.current.start();
@@ -177,6 +185,8 @@ export default function App() {
   /****************************** SERVER I/O ******************************/
   const uploadAndTranscribe = async (blob) => {
     try {
+      if (!chatActiveRef.current) return;
+
       const form = new FormData();
       form.append('file', blob, 'speech.webm');
       form.append('session_id', sessionIdRef.current);
@@ -306,13 +316,29 @@ export default function App() {
       }, { once: true });
 
       audioRef.current = audio;
+
+      // Connect audio element to WebAudio analyser for visualisation
+      const assistantSource = contextRef.current.createMediaElementSource(audio);
+      const assistantAnalyser = contextRef.current.createAnalyser();
+      assistantSource.connect(assistantAnalyser);
+      assistantAnalyser.connect(contextRef.current.destination);
+
       audio.onended = () => {
         URL.revokeObjectURL(objectUrl);
+        if (animationIdRef.current) {
+          cancelAnimationFrame(animationIdRef.current);
+          animationIdRef.current = null;
+        }
         if (chatActiveRef.current) {
           listenToUser();
         }
       };
+
       await audio.play();
+
+      // Start visualising once playback actually begins
+      visualiseAssistant(assistantAnalyser);
+
     } catch (err) {
       console.error('Assistant error', err);
       if (chatActiveRef.current) {
@@ -333,11 +359,36 @@ export default function App() {
     analyser.getByteFrequencyData(data);
     const level = data.reduce((a, b) => a + b, 0) / data.length;
 
-    if (userVisualizerRef.current) {
-      userVisualizerRef.current.style.transform = `scale(${level / 10})`;
+    if (userVisualizerRef.current && userVisualizerRef.current.material) {
+      // Map microphone input to blob intensity and scale
+      const intensity = MathUtils.clamp(level / 30, 0, 1.5);
+      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
+
+      const s = 0.8 + intensity * 0.4; // limits overall size
+      userVisualizerRef.current.scale.set(s, s, s);
     }
 
     animationIdRef.current = requestAnimationFrame(() => visualiseUser(analyser));
+  };
+
+  // Visualise assistant speech using the same blob
+  const visualiseAssistant = (analyser) => {
+    if (!chatActiveRef.current) return;
+
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const level = data.reduce((a, b) => a + b, 0) / data.length;
+
+    if (userVisualizerRef.current && userVisualizerRef.current.material) {
+      const intensity = MathUtils.clamp(level / 30, 0, 1.5);
+      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
+      const s = 0.8 + intensity * 0.4; // limits overall size
+      userVisualizerRef.current.scale.set(s, s, s);
+    }
+
+    if (audioRef.current) {
+      animationIdRef.current = requestAnimationFrame(() => visualiseAssistant(analyser));
+    }
   };
 
   const stopUserRecording = () => {
@@ -361,7 +412,10 @@ export default function App() {
     }
 
     if (userVisualizerRef.current) {
-      userVisualizerRef.current.style.transform = 'scale(0)';
+      userVisualizerRef.current.scale.set(0.8, 0.8, 0.8);
+      if (userVisualizerRef.current.material) {
+        userVisualizerRef.current.material.uniforms.u_intensity.value = 0.3;
+      }
     }
   };
 
@@ -372,7 +426,13 @@ export default function App() {
         {isChatting ? 'Stop' : 'Start'}
       </button>
 
-      <div className="user-visualizer" ref={userVisualizerRef} />
+      {isChatting && (
+        <Canvas style={{ width: 300, height: 300 }}>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[5, 5, 5]} />
+          <AudioBlob ref={userVisualizerRef} />
+        </Canvas>
+      )}
       <div className="chat-history">
         {chatHistory.map((m, i) => (
           <p key={i} className={`speech-bubble ${m.role}`}>

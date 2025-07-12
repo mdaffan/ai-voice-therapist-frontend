@@ -8,7 +8,7 @@ import { useFrame } from "@react-three/fiber";
 
 const Blob = forwardRef(({ speed = 0.4 }, ref) => {
   const mesh = useRef();
-  const hover = useRef(false);
+  // Hover interactivity removed in visualiser context
   const uniforms = useMemo(() => {
     return {
       u_time: { value: 0 },
@@ -32,8 +32,7 @@ const Blob = forwardRef(({ speed = 0.4 }, ref) => {
       ref={mesh}
       scale={1.5}
       position={[0, 0, 0]}
-      onPointerOver={() => (hover.current = true)}
-      onPointerOut={() => (hover.current = false)}
+
     >
       <icosahedronGeometry args={[2, 20]} />
       <shaderMaterial
