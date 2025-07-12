@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Canvas } from "@react-three/fiber";
-import VisualBlob from "./components/blob/index.jsx";
-import { MathUtils } from "three";
+import Blob from "./components/blob/index.jsx";
 // Generate a unique ID for each conversation session
 function newSessionId() {
   if (crypto && typeof crypto.randomUUID === 'function') {
@@ -96,10 +95,7 @@ export default function App() {
 
     // reset visualiser
     if (userVisualizerRef.current) {
-      userVisualizerRef.current.scale.set(0.8, 0.8, 0.8);
-      if (userVisualizerRef.current.material) {
-        userVisualizerRef.current.material.uniforms.u_intensity.value = 0.15;
-      }
+      userVisualizerRef.current.style.transform = 'scale(0)';
     }
 
     // close audio context
@@ -310,21 +306,8 @@ export default function App() {
       }, { once: true });
 
       audioRef.current = audio;
-
-      // Connect audio element to WebAudio analyser for visualisation
-      const assistantSource = contextRef.current.createMediaElementSource(audio);
-      const assistantAnalyser = contextRef.current.createAnalyser();
-      assistantSource.connect(assistantAnalyser);
-      assistantAnalyser.connect(contextRef.current.destination);
-
-      visualiseAssistant(assistantAnalyser);
-
       audio.onended = () => {
         URL.revokeObjectURL(objectUrl);
-        if (animationIdRef.current) {
-          cancelAnimationFrame(animationIdRef.current);
-          animationIdRef.current = null;
-        }
         if (chatActiveRef.current) {
           listenToUser();
         }
@@ -350,36 +333,11 @@ export default function App() {
     analyser.getByteFrequencyData(data);
     const level = data.reduce((a, b) => a + b, 0) / data.length;
 
-    if (userVisualizerRef.current && userVisualizerRef.current.material) {
-      // Map microphone input to blob intensity and scale
-      const intensity = MathUtils.clamp(level / 80, 0, 1);
-      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
-
-      const s = intensity + 0.8;
-      userVisualizerRef.current.scale.set(s, s, s);
+    if (userVisualizerRef.current) {
+      userVisualizerRef.current.style.transform = `scale(${level / 10})`;
     }
 
     animationIdRef.current = requestAnimationFrame(() => visualiseUser(analyser));
-  };
-
-  // Visualise assistant speech using the same blob
-  const visualiseAssistant = (analyser) => {
-    if (!chatActiveRef.current) return;
-
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    const level = data.reduce((a, b) => a + b, 0) / data.length;
-
-    if (userVisualizerRef.current && userVisualizerRef.current.material) {
-      const intensity = MathUtils.clamp(level / 80, 0, 1);
-      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
-      const s = intensity + 0.8;
-      userVisualizerRef.current.scale.set(s, s, s);
-    }
-
-    if (audioRef.current && !audioRef.current.paused) {
-      animationIdRef.current = requestAnimationFrame(() => visualiseAssistant(analyser));
-    }
   };
 
   const stopUserRecording = () => {
@@ -403,10 +361,7 @@ export default function App() {
     }
 
     if (userVisualizerRef.current) {
-      userVisualizerRef.current.scale.set(0.8, 0.8, 0.8);
-      if (userVisualizerRef.current.material) {
-        userVisualizerRef.current.material.uniforms.u_intensity.value = 0.15;
-      }
+      userVisualizerRef.current.style.transform = 'scale(0)';
     }
   };
 
@@ -417,13 +372,7 @@ export default function App() {
         {isChatting ? 'Stop' : 'Start'}
       </button>
 
-      {isChatting && (
-        <Canvas style={{ width: 100, height: 100 }}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} />
-          <VisualBlob ref={userVisualizerRef} />
-        </Canvas>
-      )}
+      <div className="user-visualizer" ref={userVisualizerRef} />
       <div className="chat-history">
         {chatHistory.map((m, i) => (
           <p key={i} className={`speech-bubble ${m.role}`}>
