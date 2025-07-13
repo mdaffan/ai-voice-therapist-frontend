@@ -156,7 +156,7 @@ export default function App() {
   
       let silenceStartTime = null;
       const SILENCE_THRESHOLD = 10; // volume threshold
-      const MAX_SILENCE_MS = 4000;
+      const MAX_SILENCE_MS = 2000;
   
       const silenceCheckLoop = () => {
         if (!chatActiveRef.current || !mediaRecRef.current || mediaRecRef.current.state !== 'recording') return;
@@ -243,7 +243,7 @@ export default function App() {
     const res = await fetch(`${API_BASE}/chat_stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: prompt }),
+      body: JSON.stringify({ text: prompt, session_id: sessionIdRef.current }),
     });
 
     const reader = res.body.getReader();
@@ -521,11 +521,23 @@ userVisualizerRef.current.scale.set(s, s, s);
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 20,
-          pointerEvents: 'none'
+          pointerEvents: 'auto', // allow clicks inside overlay
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(5px)',
         }}>
+          {/* End-Voice button */}
+          <button
+            onClick={stopChat}
+            style={{ position: 'absolute', bottom: '40px', left: '50%', transform: 'translateX(-50%)' }}
+            className="px-6 py-3 bg-red-600 text-white rounded-full shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300 transition-all duration-200 ease-in-out transform hover:scale-105"
+          >
+            End voice
+          </button>
+
           <Canvas style={{ 
             width: 500, 
-            height: 500
+            height: 500,
+            pointerEvents: 'none' // blob itself should not intercept clicks
           }}>
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} />
