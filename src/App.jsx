@@ -61,6 +61,10 @@ export default function App() {
 
     chatActiveRef.current = true;
     setIsChatting(true);
+    if (userVisualizerRef.current) {
+      userVisualizerRef.current.material.uniforms.u_intensity.value = 0.3;
+      userVisualizerRef.current.scale.set(0.8, 0.8, 0.8);
+    }
 
     contextRef.current = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -130,58 +134,66 @@ export default function App() {
   /****************************** CONVERSATION FLOW ******************************/
   const listenToUser = async () => {
     if (!chatActiveRef.current) return;
-
+  
     currentSpeakerRef.current = 'user';
-
+  
     try {
-      // ensure fresh stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
-
+  
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-
+  
       const source = contextRef.current.createMediaStreamSource(stream);
       const analyser = contextRef.current.createAnalyser();
       source.connect(analyser);
       visualiseUser(analyser);
-
-      // ---------- MediaRecorder ----------
+  
       chunksRef.current = [];
       mediaRecRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-      // Silence detection helper
-      let silenceTimer;
-      const resetSilenceTimer = () => {
-        clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(() => {
-          if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') {
+  
+      let silenceStartTime = null;
+      const SILENCE_THRESHOLD = 10; // volume threshold
+      const MAX_SILENCE_MS = 4000;
+  
+      const silenceCheckLoop = () => {
+        if (!chatActiveRef.current || !mediaRecRef.current || mediaRecRef.current.state !== 'recording') return;
+  
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const average = data.reduce((a, b) => a + b, 0) / data.length;
+  
+        if (average < SILENCE_THRESHOLD) {
+          if (silenceStartTime === null) {
+            silenceStartTime = Date.now();
+          } else if (Date.now() - silenceStartTime > MAX_SILENCE_MS) {
             mediaRecRef.current.stop();
+            return;
           }
-        }, 4000); // 4 s of inactivity ends the turn
+        } else {
+          silenceStartTime = null; // reset if noise detected
+        }
+  
+        requestAnimationFrame(silenceCheckLoop);
       };
-
+  
       mediaRecRef.current.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
-          resetSilenceTimer();
         }
       };
-
+  
       mediaRecRef.current.onstop = async () => {
-        // Skip processing if chat was stopped in the meantime
         if (!chatActiveRef.current) return;
-
         stopUserRecording();
-
-        const audioBlob = new window.Blob(chunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
         await uploadAndTranscribe(audioBlob);
       };
-
+  
       mediaRecRef.current.start();
-      resetSilenceTimer();
+      silenceCheckLoop(); // Start silence monitoring
     } catch (err) {
       console.error('Error accessing microphone', err);
       if (chatActiveRef.current) {
@@ -189,6 +201,7 @@ export default function App() {
       }
     }
   };
+  
 
   /****************************** SERVER I/O ******************************/
   const uploadAndTranscribe = async (blob) => {
@@ -381,11 +394,14 @@ export default function App() {
 
     if (userVisualizerRef.current && userVisualizerRef.current.material) {
       // Map microphone input to blob intensity and scale
-      const intensity = MathUtils.clamp(level / 30, 0, 1.5);
-      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
+      const targetIntensity = MathUtils.clamp(level / 40, 0.1, 1.2); // less jumpy
+const current = userVisualizerRef.current.material.uniforms.u_intensity.value;
+const easedIntensity = MathUtils.lerp(current, targetIntensity, 0.1); // ease rate
+userVisualizerRef.current.material.uniforms.u_intensity.value = easedIntensity;
+      
 
-      const s = 0.8 + intensity * 0.4; // limits overall size
-      userVisualizerRef.current.scale.set(s, s, s);
+const s = 0.8 + easedIntensity * 0.4;
+userVisualizerRef.current.scale.set(s, s, s);
     }
 
     animationIdRef.current = requestAnimationFrame(() => visualiseUser(analyser));
@@ -400,10 +416,13 @@ export default function App() {
     const level = data.reduce((a, b) => a + b, 0) / data.length;
 
     if (userVisualizerRef.current && userVisualizerRef.current.material) {
-      const intensity = MathUtils.clamp(level / 30, 0, 1.5);
-      userVisualizerRef.current.material.uniforms.u_intensity.value = intensity;
-      const s = 0.8 + intensity * 0.4; // limits overall size
-      userVisualizerRef.current.scale.set(s, s, s);
+      const targetIntensity = MathUtils.clamp(level / 40, 0.1, 1.2); // less jumpy
+const current = userVisualizerRef.current.material.uniforms.u_intensity.value;
+const easedIntensity = MathUtils.lerp(current, targetIntensity, 0.1); // ease rate
+userVisualizerRef.current.material.uniforms.u_intensity.value = easedIntensity;
+      
+const s = 0.8 + easedIntensity * 0.4;
+userVisualizerRef.current.scale.set(s, s, s);
     }
 
     if (audioRef.current) {
@@ -505,8 +524,8 @@ export default function App() {
           pointerEvents: 'none'
         }}>
           <Canvas style={{ 
-            width: 300, 
-            height: 300
+            width: 500, 
+            height: 500
           }}>
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} />
