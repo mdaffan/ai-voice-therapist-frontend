@@ -37,7 +37,8 @@ export default function App() {
   const chatActiveRef = useRef(false); // single source of truth
   const currentSpeakerRef = useRef(null); // 'user' | 'assistant' | null
 
-  const API_BASE = 'http://localhost:9000';
+  // Base URL for backend API – falls back to localhost if not provided
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:9000';
 
   /****************************** LIFECYCLE ******************************/
   useEffect(() => {
@@ -213,7 +214,7 @@ export default function App() {
       form.append('session_id', sessionIdRef.current);
       form.append('turn', String(turnRef.current));
 
-      const res = await fetch('http://localhost:9000/stt', {
+      const res = await fetch(`${API_BASE}/stt`, {
         method: 'POST',
         body: form,
       });
