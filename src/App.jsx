@@ -158,25 +158,30 @@ export default function App() {
       let silenceStartTime = null;
       const SILENCE_THRESHOLD = 10; // volume threshold
       const MAX_SILENCE_MS = 2000;
-  
+
+      let hasSpoken = false; // Track if user has started speaking
+
       const silenceCheckLoop = () => {
         if (!chatActiveRef.current || !mediaRecRef.current || mediaRecRef.current.state !== 'recording') return;
-  
+
         const data = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(data);
         const average = data.reduce((a, b) => a + b, 0) / data.length;
-  
-        if (average < SILENCE_THRESHOLD) {
+
+        if (average >= SILENCE_THRESHOLD) {
+          // Detected speech
+          hasSpoken = true;
+          silenceStartTime = null; // reset since user is speaking
+        } else if (hasSpoken) {
+          // Only start counting silence after speech has begun
           if (silenceStartTime === null) {
             silenceStartTime = Date.now();
           } else if (Date.now() - silenceStartTime > MAX_SILENCE_MS) {
             mediaRecRef.current.stop();
             return;
           }
-        } else {
-          silenceStartTime = null; // reset if noise detected
         }
-  
+
         requestAnimationFrame(silenceCheckLoop);
       };
   
