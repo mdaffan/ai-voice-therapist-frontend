@@ -517,30 +517,17 @@ userVisualizerRef.current.scale.set(s, s, s);
 
       {/* Blob Canvas Overlay */}
       {isChatting && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 20,
-          pointerEvents: 'auto', // allow clicks inside overlay
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(5px)',
-        }}>
+        <div className="fixed top-0 left-0 w-dvw h-dvh flex items-center justify-center z-20 bg-black/50 backdrop-blur-sm pointer-events-auto">
           {/* End-Voice button */}
           <button
             onClick={stopChat}
-            style={{ position: 'absolute', bottom: '40px', left: '50%', transform: 'translateX(-50%)' }}
-            className="px-6 py-3 bg-red-600 text-white rounded-full shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300 transition-all duration-200 ease-in-out transform hover:scale-105"
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-red-600 text-white rounded-full shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300 transition-all duration-200 ease-in-out hover:scale-105 z-30"
           >
             End voice
           </button>
 
-          <Canvas style={{ 
+          {/* Applying tailwind instead of direct classes is causing issues */}
+          <Canvas  style={{ 
             width: 500, 
             height: 500,
             pointerEvents: 'none' // blob itself should not intercept clicks
@@ -551,6 +538,7 @@ userVisualizerRef.current.scale.set(s, s, s);
           </Canvas>
         </div>
       )}
+
 
       {/* Custom scrollbar styles */}
       <style>{`

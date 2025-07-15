@@ -12,23 +12,16 @@ pnpm install
 pnpm dev      # http://localhost:5173 (or next available port)
 ```
 
-The UI expects the backend to be running on `http://localhost:9000` (override via the `API_BASE` const inside `src/App.jsx`).
+The UI expects the backend to be running on `http://localhost:9000` by default.  In production or if the API is on a different host, set the environment variable before build:
 
----
-
-## 2 Docker
+You can also change the value temporarily when running the dev server:
 
 ```bash
-# Build static bundle and serve via Nginx on port 3000
-docker build -f Dockerfile -t voice-therapist-ui .
-docker run -p 3000:3000 voice-therapist-ui
-
-# Open http://localhost:3000
+VITE_API_BASE="https://staging.example.com" 
 ```
 
----
 
-## 3 Scripts
+## 2 Scripts
 
 * `pnpm dev` – Vite dev server with HMR.
 * `pnpm build` – production bundle to `dist/`.
