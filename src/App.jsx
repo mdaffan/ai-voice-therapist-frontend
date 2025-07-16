@@ -6,7 +6,7 @@ import './App.css';
 
 export default function App() {
   const userVisualizerRef = useRef(null);
-  const { chatHistory, isChatting, startChat, stopChat } = useVoiceChat(userVisualizerRef);
+  const { chatHistory, isChatting, startChat, stopChat, status } = useVoiceChat(userVisualizerRef);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -46,6 +46,13 @@ export default function App() {
       {/* Overlay blob + End button while chatting */}
       {isChatting && (
         <div className="fixed top-0 left-0 w-dvw h-dvh flex items-center justify-center z-20 bg-black/50 backdrop-blur-sm pointer-events-auto">
+          {status !== 'idle' && (
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 px-3 py-1 bg-white/60 text-gray-700 text-xs rounded-full shadow backdrop-blur-md z-30">
+              {status === 'listening' && 'Listening…'}
+              {status === 'transcribing' && 'Transcribing…'}
+              {status === 'speaking' && 'Speaking…'}
+            </div>
+          )}
           <button onClick={stopChat} className="absolute bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-red-600 text-white rounded-full shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300 transition-all duration-200 ease-in-out hover:scale-105 z-30">
             End voice
           </button>

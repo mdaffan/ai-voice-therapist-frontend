@@ -10,6 +10,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
   const [chatHistory, setChatHistory] = useState([
     { role: 'assistant', content: "Hello, I'm here to listen. How can I assist you today?" },
   ]);
+  const [status, setStatus] = useState('idle'); // idle | listening | transcribing | speaking
 
   const sessionIdRef = useRef(newSessionId());
   const turnRef = useRef(0);
@@ -58,6 +59,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
       audioRef.current.pause();
       audioRef.current = null;
     }
+    setStatus('idle');
   }, [userVisualizerRef]);
 
   /** Stop MediaRecorder + mic and reset blob visual */
@@ -111,6 +113,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
   const uploadAndTranscribe = useCallback(async (blob) => {
     try {
       if (!chatActiveRef.current) return;
+      setStatus('transcribing');
 
       const form = new FormData();
       form.append('file', blob, 'speech.webm');
@@ -137,6 +140,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
   /** Listen to user via microphone until silence detected */
   const listenToUser = useCallback(async () => {
     if (!chatActiveRef.current) return;
+    setStatus('listening');
     currentSpeakerRef.current = 'user';
 
     try {
@@ -203,6 +207,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
   /** Stream assistant tokens, then stream TTS audio */
   const speakAsAI = useCallback(async (prompt) => {
     if (!chatActiveRef.current) return;
+    setStatus('speaking');
     currentSpeakerRef.current = 'assistant';
 
     try {
@@ -318,6 +323,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
     if (isChatting) return;
     chatActiveRef.current = true;
     setIsChatting(true);
+    setStatus('listening');
 
     if (userVisualizerRef?.current?.material?.uniforms) {
       userVisualizerRef.current.material.uniforms.u_intensity.value = 0.3;
@@ -332,6 +338,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
     if (!chatActiveRef.current) return;
     chatActiveRef.current = false;
     setIsChatting(false);
+    setStatus('idle');
     stopUserRecording();
     hardCleanup();
   }, [stopUserRecording, hardCleanup]);
@@ -339,7 +346,7 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
   /* Cleanup on unmount */
   useEffect(() => hardCleanup, [hardCleanup]);
 
-  return { chatHistory, isChatting, startChat, stopChat };
+  return { chatHistory, isChatting, startChat, stopChat, status };
 }
 
 /** Generate a unique id for each browser session */
