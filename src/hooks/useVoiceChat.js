@@ -232,32 +232,59 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
       let audio;
       let url;
 
-      const canUseMSE = typeof window !== 'undefined' && 'MediaSource' in window && MediaSource.isTypeSupported('audio/mpeg');
+      let canUseMSE = typeof window !== 'undefined' && 'MediaSource' in window && MediaSource.isTypeSupported('audio/mpeg');
 
       if (canUseMSE) {
         /* -------------------- Stream via MSE (desktop + most Android) -------------------- */
-        const mediaSource = new MediaSource();
-        url = URL.createObjectURL(mediaSource);
-        audio = new Audio();
-        audio.src = url;
+        try {
+          const mediaSource = new MediaSource();
+          url = URL.createObjectURL(mediaSource);
+          audio = new Audio();
+          audio.src = url;
 
-        mediaSource.addEventListener('sourceopen', async () => {
-          const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
-          const reader = audioStream.getReader();
-          const pump = async () => {
-            const { value, done } = await reader.read();
-            if (done) {
-              if (!sourceBuffer.updating) mediaSource.endOfStream();
-              else sourceBuffer.addEventListener('updateend', () => mediaSource.endOfStream(), { once: true });
+          mediaSource.addEventListener('sourceopen', async () => {
+            let sourceBuffer;
+            try {
+              sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+            } catch (e) {
+              console.warn('MSE SourceBuffer creation failed, falling back to full download', e);
+              mediaSource.endOfStream();
+              /* fallback below */
+              const blob = await (async () => {
+                const chunks = [];
+                const reader = audioStream.getReader();
+                while (true) {
+                  const { value, done } = await reader.read();
+                  if (done) break;
+                  if (value) chunks.push(value);
+                }
+                return new Blob(chunks, { type: 'audio/mpeg' });
+              })();
+              audio.src = URL.createObjectURL(blob);
               return;
             }
-            sourceBuffer.appendBuffer(value);
-            if (!sourceBuffer.updating) pump();
-            else sourceBuffer.addEventListener('updateend', pump, { once: true });
-          };
-          pump();
-        }, { once: true });
-      } else {
+
+            const reader = audioStream.getReader();
+            const pump = async () => {
+              const { value, done } = await reader.read();
+              if (done) {
+                if (!sourceBuffer.updating) mediaSource.endOfStream();
+                else sourceBuffer.addEventListener('updateend', () => mediaSource.endOfStream(), { once: true });
+                return;
+              }
+              sourceBuffer.appendBuffer(value);
+              if (!sourceBuffer.updating) pump();
+              else sourceBuffer.addEventListener('updateend', pump, { once: true });
+            };
+            pump();
+          }, { once: true });
+        } catch (err) {
+          console.warn('MSE setup failed, falling back to full download', err);
+          canUseMSE = false; // flag for fallback
+        }
+      }
+
+      if (!canUseMSE) {
         /* -------------------- Fallback: buffer entire audio then play -------------------- */
         const chunks = [];
         const reader = audioStream.getReader();
