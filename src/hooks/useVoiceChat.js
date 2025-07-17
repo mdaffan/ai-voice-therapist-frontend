@@ -228,27 +228,48 @@ export default function useVoiceChat(userVisualizerRef, apiBase = import.meta.en
       });
 
       const audioStream = await fetchSpeech(fullText);
-      const audio = new Audio();
-      const mediaSource = new MediaSource();
-      const url = URL.createObjectURL(mediaSource);
-      audio.src = url;
 
-      mediaSource.addEventListener('sourceopen', async () => {
-        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+      let audio;
+      let url;
+
+      const canUseMSE = typeof window !== 'undefined' && 'MediaSource' in window && MediaSource.isTypeSupported('audio/mpeg');
+
+      if (canUseMSE) {
+        /* -------------------- Stream via MSE (desktop + most Android) -------------------- */
+        const mediaSource = new MediaSource();
+        url = URL.createObjectURL(mediaSource);
+        audio = new Audio();
+        audio.src = url;
+
+        mediaSource.addEventListener('sourceopen', async () => {
+          const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+          const reader = audioStream.getReader();
+          const pump = async () => {
+            const { value, done } = await reader.read();
+            if (done) {
+              if (!sourceBuffer.updating) mediaSource.endOfStream();
+              else sourceBuffer.addEventListener('updateend', () => mediaSource.endOfStream(), { once: true });
+              return;
+            }
+            sourceBuffer.appendBuffer(value);
+            if (!sourceBuffer.updating) pump();
+            else sourceBuffer.addEventListener('updateend', pump, { once: true });
+          };
+          pump();
+        }, { once: true });
+      } else {
+        /* -------------------- Fallback: buffer entire audio then play -------------------- */
+        const chunks = [];
         const reader = audioStream.getReader();
-        const pump = async () => {
+        while (true) {
           const { value, done } = await reader.read();
-          if (done) {
-            if (!sourceBuffer.updating) mediaSource.endOfStream();
-            else sourceBuffer.addEventListener('updateend', () => mediaSource.endOfStream(), { once: true });
-            return;
-          }
-          sourceBuffer.appendBuffer(value);
-          if (!sourceBuffer.updating) pump();
-          else sourceBuffer.addEventListener('updateend', pump, { once: true });
-        };
-        pump();
-      }, { once: true });
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        const blob = new Blob(chunks, { type: 'audio/mpeg' });
+        url = URL.createObjectURL(blob);
+        audio = new Audio(url);
+      }
 
       audioRef.current = audio;
 
