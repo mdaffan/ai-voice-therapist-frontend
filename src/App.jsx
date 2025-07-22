@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { Canvas } from "@react-three/fiber";
 import AudioBlob from "./components/blob/index.jsx";
-import useVoiceChat from "./hooks/useVoiceChat.js";
+import useVoiceChat from "./hooks/useVoiceChatWS.js";
 import './App.css';
 
 export default function App() {
