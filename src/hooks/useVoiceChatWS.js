@@ -16,7 +16,7 @@ const SERVER_MSG = {
 
 export default function useVoiceChatWSv2(
   userVisualizerRef,
-  apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:9000'
+  apiBase = import.meta.env.VITE_API_BASE || 'https://ai-therapist.crafzen.com'
 ) {
   /* ============================= React state ============================== */
   const [chatHistory, setChatHistory] = useState([
@@ -181,36 +181,71 @@ export default function useVoiceChatWSv2(
   };
 
   const finishTTSPlayback = () => {
-    if (mediaSourceRef.current?.readyState === 'open') mediaSourceRef.current.endOfStream();
-    mediaSourceRef.current = null;
-    sourceBufferRef.current = null;
-    chunkQueueRef.current = [];
+    const ms = mediaSourceRef.current;
+    const sb = sourceBufferRef.current;
 
-    // --- blob fallback (if MSE unsupported) ---
-    if (fallbackChunks.current.length) {
-      const blob = new Blob(fallbackChunks.current, { type: 'audio/mpeg' });
-      fallbackChunks.current = [];
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        if (activeRef.current) {
-          setTimeout(() => {
-            if (!activeRef.current) return;
-            setStatus('listening');
-            startMicRecording();
-          }, 400);
+    const cleanupAndFallback = () => {
+      mediaSourceRef.current = null;
+      sourceBufferRef.current = null;
+      chunkQueueRef.current = [];
+
+      // Handle blob fallback if needed
+      if (fallbackChunks.current.length) {
+        const blob = new Blob(fallbackChunks.current, { type: 'audio/mpeg' });
+        fallbackChunks.current = [];
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          if (activeRef.current) {
+            setTimeout(() => {
+              if (!activeRef.current) return;
+              setStatus('listening');
+              startMicRecording();
+            }, 400);
+          }
+        };
+        audio.onerror = audio.onended;
+        audio.play().catch(() => {});
+      }
+    };
+
+    // Only proceed if MediaSource is open
+    if (ms?.readyState === 'open') {
+      const endStream = () => {
+        try {
+          ms.endOfStream();
+        } catch (err) {
+          console.warn('MediaSource endOfStream failed:', err);
         }
+        cleanupAndFallback();
       };
-      audio.onerror = audio.onended;
-      audio.play().catch(() => {});
+
+      if (sb?.updating) {
+        // Wait for any ongoing updates and queued buffers
+        const checkAndEnd = () => {
+          if (chunkQueueRef.current.length > 0) {
+            // More chunks queued, wait for next updateend
+            return;
+          }
+          if (!sb.updating) {
+            sb.removeEventListener('updateend', checkAndEnd);
+            endStream();
+          }
+        };
+        sb.addEventListener('updateend', checkAndEnd);
+      } else {
+        endStream();
+      }
+    } else {
+      cleanupAndFallback();
     }
-    // Mic restart handled by audio.onended (blob or MSE) to ensure playback fully finished.
   };
 
   /* -------------------------- WebSocket lifecycle ----------------------- */
   const openSocket = useCallback(() => {
-    const wsUrl = apiBase.replace(/^http/, 'ws') + `/ws/chat?session_id=${sessionIdRef.current}`;
+    const wsUrl = apiBase + `/ws/chat?session_id=${sessionIdRef.current}`;
+    console.log("Connecting to WS at", wsUrl);
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
@@ -307,4 +342,4 @@ export default function useVoiceChatWSv2(
 --------------------------------------------------------------------------- */
 function generateSessionId() {
   return (crypto && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-} 
+}
